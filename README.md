@@ -6,3 +6,5 @@ An interactive dashboard of belly button micro-organisms developed from a datase
 
 ## Data Source
 [Rob Dunn Lab](http://robdunnlab.com/projects/belly-button-biodiversity/ "Rob Dunn Lab")
+
+https://belly-button-visualization.herokuapp.com/ 
