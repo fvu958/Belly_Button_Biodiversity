@@ -1,82 +1,109 @@
-function updateMetaData(data) {
-  var PANEL = document.getElementById("sample-metadata");
-  PANEL.innerHTML = '';
-  for(var key in data) {
-      h6tag = document.createElement("h6");
-      h6Text = document.createTextNode(`${key}: ${data[key]}`);
-      h6tag.append(h6Text);
-      PANEL.appendChild(h6tag);
-  }
-}
-function buildCharts(sampleData, otuData) {
-  var labels = sampleData[0]['otu_ids'].map(function(item) {
-      return otuData[item]
-  });
-  var bubbleLayout = {
-      margin: { t: 0 },
-      hovermode: 'closest',
-      xaxis: { title: 'OTU ID' }
-  };
-  var bubbleData = [{
-      x: sampleData[0]['otu_ids'],
-      y: sampleData[0]['sample_values'],
-      text: labels,
-      mode: 'markers',
-      marker: {
-          size: sampleData[0]['sample_values'],
-          color: sampleData[0]['otu_ids'],
-          colorscale: "Earth",
-      }
-  }];
-  var BUBBLE = document.getElementById('bubble');
-  Plotly.plot(BUBBLE, bubbleData, bubbleLayout);
-  console.log(sampleData[0]['sample_values'].slice(0, 10))
-  var pieData = [{
-      values: sampleData[0]['sample_values'].slice(0, 10),
-      labels: sampleData[0]['otu_ids'].slice(0, 10),
-      hovertext: labels.slice(0, 10),
-      hoverinfo: 'hovertext',
-      type: 'pie'
-  }];
-  var pieLayout = {
-      margin: { t: 0, l: 0 }
-  };
-  var PIE = document.getElementById('pie');
-  Plotly.plot(PIE, pieData, pieLayout);
+function getSampleNames(){
+    var selector = document.getElementById('selDataset');
+    var url = "/names";
+    Plotly.d3.json(url, function(error, response) {
+        if (error) return console.warn(error);
+        var data = response;
+        data.map(function(sample){
+            var option = document.createElement('option')
+            option.text = sample
+            option.value = sample
+            selector.appendChild(option)
+        });
+    });
 };
-function updateCharts(sampleData, otuData) {
-  var sampleValues = sampleData[0]['sample_values'];
-  var otuIDs = sampleData[0]['otu_ids'];
-  var labels = otuIDs.map(function(item) {
-      return otuData[item]
-  });
-  var BUBBLE = document.getElementById('bubble');
-  Plotly.restyle(BUBBLE, 'x', [otuIDs]);
-  Plotly.restyle(BUBBLE, 'y', [sampleValues]);
-  Plotly.restyle(BUBBLE, 'text', [labels]);
-  Plotly.restyle(BUBBLE, 'marker.size', [sampleValues]);
-  Plotly.restyle(BUBBLE, 'marker.color', [otuIDs]);
-  var PIE = document.getElementById('pie');
-  var pieUpdate = {
-      values: [sampleValues.slice(0, 10)],
-      labels: [otuIDs.slice(0, 10)],
-      hovertext: [labels.slice(0, 10)],
-      hoverinfo: 'hovertext',
-      type: 'pie'
-  };
-  Plotly.restyle(PIE, pieUpdate);
-}
-function getData(sample, callback) {
-  Plotly.d3.json(`/samples/${sample}`, function(error, sampleData) {
-      if (error) return console.warn(error);
-      Plotly.d3.json('/otu', function(error, otuData) {
-          if (error) return console.warn(error);
-          callback(sampleData, otuData);
-      });
-  });
-  Plotly.d3.json(`/metadata/${sample}`, function(error, metaData) {
-      if (error) return console.warn(error);
-      updateMetaData(metaData);
-  })
 
-init();
+getSampleNames();
+
+function optionChanged(sample){
+    updatePie(sample);
+    updateBubble(sample);
+    updateMetadata(sample);
+};
+
+function updatePie(sample) {
+    var sampleURL = `/samples/${sample}`
+    Plotly.d3.json(sampleURL,function(error,response){
+        if (error) return console.log(error);
+        var labels = []
+        var values = []
+        var hovers = []
+        for(i=0; i<10; i++){
+            var label = response[0].otu_ids[i];
+            labels.push(label);
+            var value = response[1].sample_values[i];
+            values.push(value);
+            var hover = response[2][label - 1];
+            hovers.push(hover);
+        };
+        var trace = {
+            values: values,
+            labels: labels,
+            type: "pie",
+            text: hovers,
+            hoverinfo: "label+text+value+percent",
+            textinfo: "percent"
+        };
+        var data = [trace]
+        var layout = {
+            margin: {
+                l: 10,
+                r: 10,
+                b: 10,
+                t: 10,
+                pad: 4
+            }
+        }   
+   
+        Plotly.newPlot("pieChart", data, layout)
+    });
+};
+
+function updateBubble(sample) {
+    var sampleURL = `/samples/${sample}`
+    Plotly.d3.json(sampleURL,function(error,response){
+        if (error) return console.log(error);
+        var otuIDs = response[0].otu_ids;
+        var sampleValues = response[1].sample_values
+        var otuDescriptions = [];
+        for(i=0; i<otuIDs.length; i++) {
+            otuDescriptions.push(response[2][otuIDs[i] - 1]);
+        };
+        var trace = {
+            x: otuIDs,
+            y: sampleValues,
+            mode: 'markers',
+            type: 'scatter',
+            marker: {
+                size: sampleValues,
+                color: otuIDs,
+                colorscale: "Rainbow"
+            },
+            text: otuDescriptions,
+          };
+        var data = [trace]
+        Plotly.newPlot("bubbleChart", data)
+    });
+};
+
+function updateMetadata(sample){
+    var sampleURL = `/metadata/${sample}`
+    Plotly.d3.json(sampleURL,function(error,response){
+        if (error) return console.log(error);
+        console.log(response);
+        var data = response[0];
+        console.log(data)
+        var metaList = document.getElementById('sampleMetadata');
+        metaList.innerHTML = '';
+        var metaItems = [["Sample","SAMPLEID"],["Ethnicity","ETHNICITY"],["Gender","GENDER"],["Age","AGE"],
+            ["Weekly Wash Frequency","WFREQ"],["Type (Innie/Outie)","BBTYPE"],["Country","COUNTRY012"],["Dog Owner","DOG"],["Cat Owner","CAT"]];
+        console.log(metaList)
+        for(i=0; i<metaItems.length; i++){
+            var newLi = document.createElement('li');
+            newLi.innerHTML = `${metaItems[i][0]}: ${data[metaItems[i][1]]}`;
+            metaList.appendChild(newLi);
+        };
+    });
+};
+
+optionChanged("BB_940");
